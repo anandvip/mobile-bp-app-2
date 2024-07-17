@@ -199,6 +199,24 @@
         .close:hover {
             color: var(--danger-color);
         }
+
+        form {
+            display: grid;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .mobile {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+        }
+
+        @media screen and (max-width: 600px) {
+            .mobile {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
@@ -213,12 +231,33 @@
             </select>
             <button id="addUserBtn">Add New User</button>
         </div>
-        <div class="input-group">
-            <input type="number" id="systolic" placeholder="Systolic">
-            <input type="number" id="diastolic" placeholder="Diastolic">
-            <input type="number" id="pulse" placeholder="Pulse">
-            <button id="addReadingBtn">Add Reading</button>
-        </div>
+
+        <form id="bpForm">
+            <section class="mobile">
+                <label for="systolic">Systolic:</label>
+                <input type="number" id="systolic" name="systolic" required>
+                <label for="diastolic">Diastolic:</label>
+                <input type="number" id="diastolic" name="diastolic" required>
+                <label for="pulse">Pulse:</label>
+                <input type="number" id="pulse" name="pulse" required>
+            </section>
+            <label for="bodyPosition">Body Position:</label>
+            <select id="bodyPosition" name="bodyPosition" required>
+                <option value="select">Select</option>
+                <option value="seated" selected>Seated</option>
+                <option value="lying">Lying</option>
+                <option value="standing">Standing</option>
+            </select>
+            <label for="cuffLocation">Cuff Location:</label>
+            <select id="cuffLocation" name="cuffLocation" required>
+                <option value="UL" selected>Upper Left</option>
+                <option value="UR">Upper Right</option>
+                <option value="WL">Wrist Left</option>
+                <option value="WR">Wrist Right</option>
+            </select>
+            <button type="submit">Submit</button>
+        </form>
+
         <div id="chart"></div>
         <div class="stats">
             <div class="stat-card">
@@ -260,10 +299,7 @@
         // DOM Elements
         const userSelect = document.getElementById('userSelect');
         const addUserBtn = document.getElementById('addUserBtn');
-        const systolicInput = document.getElementById('systolic');
-        const diastolicInput = document.getElementById('diastolic');
-        const pulseInput = document.getElementById('pulse');
-        const addReadingBtn = document.getElementById('addReadingBtn');
+        const bpForm = document.getElementById('bpForm');
         const readingsList = document.getElementById('readingsList');
         const themeToggle = document.getElementById('themeToggle');
         const modal = document.getElementById('addUserModal');
@@ -275,7 +311,7 @@
         // Event Listeners
         userSelect.addEventListener('change', changeUser);
         addUserBtn.addEventListener('click', () => modal.style.display = 'block');
-        addReadingBtn.addEventListener('click', addReading);
+        bpForm.addEventListener('submit', addReading);
         themeToggle.addEventListener('click', toggleTheme);
         closeModal.addEventListener('click', () => modal.style.display = 'none');
         submitNewUserBtn.addEventListener('click', addUser);
@@ -337,16 +373,20 @@
             }
         }
 
-        function addReading() {
+        function addReading(event) {
+            event.preventDefault();
             if (!currentUser) {
                 showToast('Please select a user first', 'error');
                 return;
             }
-            const systolic = parseInt(systolicInput.value);
-            const diastolic = parseInt(diastolicInput.value);
-            const pulse = parseInt(pulseInput.value);
-            if (isNaN(systolic) || isNaN(diastolic) || isNaN(pulse)) {
-                showToast('Please enter valid numbers for all fields', 'error');
+            const systolic = parseInt(bpForm.systolic.value);
+            const diastolic = parseInt(bpForm.diastolic.value);
+            const pulse = parseInt(bpForm.pulse.value);
+            const bodyPosition = bpForm.bodyPosition.value;
+            const cuffLocation = bpForm.cuffLocation.value;
+
+            if (isNaN(systolic) || isNaN(diastolic) || isNaN(pulse) || bodyPosition === 'select') {
+                showToast('Please enter valid data for all fields', 'error');
                 return;
             }
             const reading = {
@@ -354,22 +394,18 @@
                 date: new Date().toISOString(),
                 systolic,
                 diastolic,
-                pulse
+                pulse,
+                bodyPosition,
+                cuffLocation
             };
             currentUser.readings.push(reading);
             localStorage.setItem('bpUsers', JSON.stringify(users));
             updateChart();
             displayReadings();
             updateStats();
-            clearInputs();
+            bpForm.reset();
             checkBloodPressure(systolic, diastolic);
             showToast('New reading added successfully');
-        }
-
-        function clearInputs() {
-            systolicInput.value = '';
-            diastolicInput.value = '';
-            pulseInput.value = '';
         }
 
         function checkBloodPressure(systolic, diastolic) {
@@ -398,31 +434,31 @@
                     zoom: { enabled: true },
                     foreColor: getComputedStyle(document.body).getPropertyValue('--text-color')
                 },
-                dataLabels: { enabled: false },
-                stroke: { curve: 'straight' },
-                title: {
-                    text: 'Blood Pressure & Pulse Trends',
-                    align: 'left'
-                },
-                grid: {
-                    borderColor: getComputedStyle(document.body).getPropertyValue('--border-color')
-                },
-                xaxis: { type: 'datetime' },
-                yaxis: { title: { text: 'Value' } },
-                theme: {
-                    mode: document.body.classList.contains('dark-theme') ? 'dark' : 'light'
-                }
-            };
-
-            if (chart) {
-                chart.updateOptions(options);
-            } else {
-                chart = new ApexCharts(document.querySelector("#chart"), options);
-                chart.render();
+              dataLabels: { enabled: false },
+            stroke: { curve: 'straight' },
+            title: {
+                text: 'Blood Pressure & Pulse Trends',
+                align: 'left'
+            },
+            grid: {
+                borderColor: getComputedStyle(document.body).getPropertyValue('--border-color')
+            },
+            xaxis: { type: 'datetime' },
+            yaxis: { title: { text: 'Value' } },
+            theme: {
+                mode: document.body.classList.contains('dark-theme') ? 'dark' : 'light'
             }
-        }
+        };
 
-        function displayReadings() {
+        if (chart) {
+            chart.updateOptions(options);
+        } else {
+            chart = new ApexCharts(document.querySelector("#chart"), options);
+            chart.render();
+        }
+    }
+
+    function displayReadings() {
         readingsList.innerHTML = '';
         currentUser.readings.slice().reverse().forEach(reading => {
             const readingElement = document.createElement('div');
@@ -432,7 +468,9 @@
                     <strong>${new Date(reading.date).toLocaleString()}</strong>
                     - Systolic: ${reading.systolic}, 
                     Diastolic: ${reading.diastolic}, 
-                    Pulse: ${reading.pulse}
+                    Pulse: ${reading.pulse},
+                    Body Position: ${reading.bodyPosition},
+                    Cuff Location: ${reading.cuffLocation}
                 </div>
                 <button class="delete-btn" data-id="${reading.id}">Delete</button>
             `;
@@ -514,8 +552,8 @@
     function showToast(message, type = 'info') {
         toast.textContent = message;
         toast.style.backgroundColor = type === 'error' ? 'var(--danger-color)' : 
-                                      type === 'warning' ? 'var(--secondary-color)' : 
-                                      'var(--primary-color)';
+                                    type === 'warning' ? 'var(--secondary-color)' : 
+                                    'var(--primary-color)';
         toast.style.opacity = '1';
         setTimeout(() => {
             toast.style.opacity = '0';
@@ -525,5 +563,3 @@
     // Initialize the app
     initApp();
 </script>
-  </body>
-</html>
