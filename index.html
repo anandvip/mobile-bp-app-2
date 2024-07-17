@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern Blood Pressure Tracker</title>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+
+        :root {
+            --bg-color: #f0f4f8;
+            --text-color: #333;
+            --card-bg: #ffffff;
+            --primary-color: #4a90e2;
+            --secondary-color: #50c878;
+            --danger-color: #e74c3c;
+            --border-color: #e1e4e8;
+        }
+
+        .dark-theme {
+            --bg-color: #1a1a1a;
+            --text-color: #f0f0f0;
+            --card-bg: #2c2c2c;
+            --primary-color: #61dafb;
+            --secondary-color: #6be585;
+            --danger-color: #ff6b6b;
+            --border-color: #444;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 20px 0;
+            text-align: center;
+            position: relative;
+        }
+
+        .theme-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        .user-panel, .input-group {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            gap: 10px;
+        }
+
+        input, select, button {
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background-color: var(--card-bg);
+            color: var(--text-color);
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        button {
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        #chart {
+            margin-top: 20px;
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .readings-list {
+            margin-top: 20px;
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .reading-item {
+            border-bottom: 1px solid var(--border-color);
+            padding: 15px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .reading-item:last-child {
+            border-bottom: none;
+        }
+
+        .delete-btn {
+            background-color: var(--danger-color);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background-color: var(--card-bg);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Modern Blood Pressure Tracker</h1>
+        <button class="theme-toggle" id="themeToggle">🌓</button>
+    </div>
+    <div class="container">
+        <div class="user-panel">
+            <select id="userSelect">
+                <option value="">Select User</option>
+            </select>
+            <button id="addUserBtn">Add New User</button>
+        </div>
+        <div class="input-group">
+            <input type="number" id="systolic" placeholder="Systolic">
+            <input type="number" id="diastolic" placeholder="Diastolic">
+            <input type="number" id="pulse" placeholder="Pulse">
+            <button id="addReadingBtn">Add Reading</button>
+        </div>
+        <div id="chart"></div>
+        <div class="stats">
+            <div class="stat-card">
+                <h3>Systolic</h3>
+                <div id="sysAvg" class="stat-value">-</div>
+                <div id="sysStdDev">StdDev: -</div>
+            </div>
+            <div class="stat-card">
+                <h3>Diastolic</h3>
+                <div id="diaAvg" class="stat-value">-</div>
+                <div id="diaStdDev">StdDev: -</div>
+            </div>
+            <div class="stat-card">
+                <h3>Pulse</h3>
+                <div id="pulseAvg" class="stat-value">-</div>
+                <div id="pulseStdDev">StdDev: -</div>
+            </div>
+        </div>
+        <div class="readings-list" id="readingsList"></div>
+    </div>
+
+    <script>
+        // Global variables
+        let users = JSON.parse(localStorage.getItem('bpUsers')) || [];
+        let currentUser = null;
+        let chart = null;
+
+        // DOM Elements
+        const userSelect = document.getElementById('userSelect');
+        const addUserBtn = document.getElementById('addUserBtn');
+        const systolicInput = document.getElementById('systolic');
+        const diastolicInput = document.getElementById('diastolic');
+        const pulseInput = document.getElementById('pulse');
+        const addReadingBtn = document.getElementById('addReadingBtn');
+        const readingsList = document.getElementById('readingsList');
+        const themeToggle = document.getElementById('themeToggle');
+
+        // Event Listeners
+        userSelect.addEventListener('change', changeUser);
+        addUserBtn.addEventListener('click', addUser);
+        addReadingBtn.addEventListener('click', addReading);
+        themeToggle.addEventListener('click', toggleTheme);
+
+        // Functions
+        function initApp() {
+            updateUserSelect();
+            if (users.length > 0) {
+                userSelect.value = users[0].id;
+                changeUser();
+            }
+            loadTheme();
+        }
+
+        function updateUserSelect() {
+            userSelect.innerHTML = '<option value="">Select User</option>';
+            users.forEach(user => {
+                const option = document.createElement('option');
+                option.value = user.id;
+                option.textContent = user.name;
+                userSelect.appendChild(option);
+            });
+        }
+
+        function changeUser() {
+            const userId = userSelect.value;
+            currentUser = users.find(user => user.id === userId);
+            if (currentUser) {
+                updateChart();
+                displayReadings();
+                updateStats();
+            }
+        }
+
+        function addUser() {
+            const name = prompt("Enter user name:");
+            if (name) {
+                const newUser = {
+                    id: Date.now().toString(),
+                    name: name,
+                    readings: []
+                };
+                users.push(newUser);
+                localStorage.setItem('bpUsers', JSON.stringify(users));
+                updateUserSelect();
+                userSelect.value = newUser.id;
+                changeUser();
+            }
+        }
+
+        function addReading() {
+            if (!currentUser) {
+                alert("Please select a user first.");
+                return;
+            }
+            const systolic = parseInt(systolicInput.value);
+            const diastolic = parseInt(diastolicInput.value);
+            const pulse = parseInt(pulseInput.value);
+            if (isNaN(systolic) || isNaN(diastolic) || isNaN(pulse)) {
+                alert("Please enter valid numbers for all fields.");
+                return;
+            }
+            const reading = {
+                id: Date.now().toString(),
+                date: new Date().toISOString(),
+                systolic,
+                diastolic,
+                pulse
+            };
+            currentUser.readings.push(reading);
+            localStorage.setItem('bpUsers', JSON.stringify(users));
+            updateChart();
+            displayReadings();
+            updateStats();
+            clearInputs();
+            checkBloodPressure(systolic, diastolic);
+        }
+
+        function clearInputs() {
+            systolicInput.value = '';
+            diastolicInput.value = '';
+            pulseInput.value = '';
+        }
+
+        function checkBloodPressure(systolic, diastolic) {
+            if (systolic >= 180 || diastolic >= 120) {
+                alert("WARNING: Your blood pressure is critically high. Seek medical attention immediately!");
+            } else if (systolic >= 140 || diastolic >= 90) {
+                alert("Your blood pressure is high. Consider contacting your doctor.");
+            }
+        }
+
+        function updateChart() {
+            const options = {
+                series: [{
+                    name: 'Systolic',
+                    data: currentUser.readings.map(r => ({ x: new Date(r.date), y: r.systolic }))
+                }, {
+                    name: 'Diastolic',
+                    data: currentUser.readings.map(r => ({ x: new Date(r.date), y: r.diastolic }))
+                }, {
+                    name: 'Pulse',
+                    data: currentUser.readings.map(r => ({ x: new Date(r.date), y: r.pulse }))
+                }],
+                chart: {
+                    type: 'line',
+                    height: 350,
+                    zoom: { enabled: true },
+                    foreColor: getComputedStyle(document.body).getPropertyValue('--text-color')
+                },
+                dataLabels: { enabled: false },
+                stroke: { curve: 'straight' },
+                title: {
+                    text: 'Blood Pressure & Pulse Trends',
+                    align: 'left'
+                },
+                grid: {
+                    borderColor: getComputedStyle(document.body).getPropertyValue('--border-color')
+                },
+                xaxis: { type: 'datetime' },
+                yaxis: { title: { text: 'Value' } },
+                theme: {
+                    mode: document.body.classList.contains('dark-theme') ? 'dark' : 'light'
+                }
+            };
+
+            if (chart) {
+                chart.updateOptions(options);
+            } else {
+                chart = new ApexCharts(document.querySelector("#chart"), options);
+                chart.render();
+            }
+        }
+
+        function displayReadings() {
+            readingsList.innerHTML = '';
+            currentUser.readings.slice().reverse().forEach(reading => {
+                const readingElement = document.createElement('div');
+                readingElement.classList.add('reading-item');
+                readingElement.innerHTML = `
+                    <div>
+                        <strong>${new Date(reading.date).toLocaleString()}</strong>
+                        - Systolic: ${reading.systolic}, 
+                        Diastolic: ${reading.diastolic}, 
+                        Pulse: ${reading.pulse}
+                    </div>
+                    <button class="delete-btn" data-id="${reading.id}">Delete</button>
+                `;
+                readingsList.appendChild(readingElement);
+            });
+
+            document.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', deleteReading);
+            });
+        }
+
+        function deleteReading(event) {
+            const readingId = event.target.getAttribute('data-id');
+            currentUser.readings = currentUser.readings.filter(r => r.id !== readingId);
+            localStorage.setItem('bpUsers', JSON.stringify(users));
+            updateChart();
+            displayReadings();
+            updateStats();
+        }
+
+        function updateStats() {
+            if (currentUser.readings.length === 0) {
+                document.getElementById('sysAvg').textContent = '-';
+                document.getElementById('diaAvg').textContent = '-';
+                document.getElementById('pulseAvg').textContent = '-';
+                document.getElementById('sysStdDev').textContent = 'StdDev: -';
+                document.getElementById('diaStdDev').textContent = 'StdDev: -';
+                document.getElementById('pulseStdDev').textContent = 'StdDev: -';
+                return;
+            }
+
+            const sysValues = currentUser.readings.map(r => r.systolic);
+            const diaValues = currentUser.readings.map(r => r.diastolic);
+            const pulseValues = currentUser.readings.map(r => r.pulse);
+
+            const sysAvg = average(sysValues);
+            const diaAvg = average(diaValues);
+            const pulseAvg = average(pulseValues);
+
+            const sysStdDev = standardDeviation(sysValues);
+            const diaStdDev = standardDeviation(diaValues);
+            const pulseStdDev = standardDeviation(pulseValues);
+
+            document.getElementById('sysAvg').textContent = sysAvg.toFixed(1);
+            document.getElementById('diaAvg').textContent = diaAvg.toFixed(1);
+            document.getElementById('pulseAvg').textContent = pulseAvg.toFixed(1);
+            document.getElementById('sysStdDev').textContent = `StdDev: ${sysStdDev.toFixed(1)}`;
+            document.getElementById('diaStdDev').textContent = `StdDev: ${diaStdDev.toFixed(1)}`;
+            document.getElementById('pulseStdDev').textContent = `StdDev: ${pulseStdDev.toFixed(1)}`;
+        }
+
+        function average(arr) {
+            return arr.length === 0 ? 0 : arr.reduce((a, b) => a + b) / arr.length;
+        }
+
+        function standardDeviation(arr) {
+        const avg = average(arr);
+        const squareDiffs = arr.map(value => Math.pow(value - avg, 2));
+        const avgSquareDiff = average(squareDiffs);
+        return Math.sqrt(avgSquareDiff);
+    }
+
+    function toggleTheme() {
+        document.body.classList.toggle('dark-theme');
+        localStorage.setItem('theme', document.body.classList.contains('dark-theme') ? 'dark' : 'light');
+        updateChart();
+    }
+
+    function loadTheme() {
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+            document.body.classList.add('dark-theme');
+        }
+        updateChart();
+    }
+
+    // Initialize the app
+    initApp();
+</script>
