@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Modern Blood Pressure Tracker</title>
+    <title>Advanced Blood Pressure Tracker</title>
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
@@ -16,6 +16,9 @@
             --secondary-color: #50c878;
             --danger-color: #e74c3c;
             --border-color: #e1e4e8;
+            --toast-bg: rgba(0, 0, 0, 0.8);
+            --toast-text: #ffffff;
+            --modal-overlay: rgba(0, 0, 0, 0.5);
         }
 
         .dark-theme {
@@ -26,6 +29,8 @@
             --secondary-color: #6be585;
             --danger-color: #ff6b6b;
             --border-color: #444;
+            --toast-bg: rgba(255, 255, 255, 0.8);
+            --toast-text: #333333;
         }
 
         body {
@@ -149,11 +154,56 @@
             font-weight: bold;
             color: var(--primary-color);
         }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: var(--toast-bg);
+            color: var(--toast-text);
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--modal-overlay);
+        }
+
+        .modal-content {
+            background-color: var(--card-bg);
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 12px;
+            width: 300px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .close {
+            color: var(--text-color);
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: var(--danger-color);
+        }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>Modern Blood Pressure Tracker</h1>
+        <h1>Advanced Blood Pressure Tracker</h1>
         <button class="theme-toggle" id="themeToggle">🌓</button>
     </div>
     <div class="container">
@@ -190,6 +240,17 @@
         <div class="readings-list" id="readingsList"></div>
     </div>
 
+    <div id="addUserModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Add New User</h2>
+            <input type="text" id="newUserName" placeholder="Enter user name">
+            <button id="submitNewUser">Add User</button>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
     <script>
         // Global variables
         let users = JSON.parse(localStorage.getItem('bpUsers')) || [];
@@ -205,12 +266,24 @@
         const addReadingBtn = document.getElementById('addReadingBtn');
         const readingsList = document.getElementById('readingsList');
         const themeToggle = document.getElementById('themeToggle');
+        const modal = document.getElementById('addUserModal');
+        const closeModal = modal.querySelector('.close');
+        const newUserNameInput = document.getElementById('newUserName');
+        const submitNewUserBtn = document.getElementById('submitNewUser');
+        const toast = document.getElementById('toast');
 
         // Event Listeners
         userSelect.addEventListener('change', changeUser);
-        addUserBtn.addEventListener('click', addUser);
+        addUserBtn.addEventListener('click', () => modal.style.display = 'block');
         addReadingBtn.addEventListener('click', addReading);
         themeToggle.addEventListener('click', toggleTheme);
+        closeModal.addEventListener('click', () => modal.style.display = 'none');
+        submitNewUserBtn.addEventListener('click', addUser);
+        window.addEventListener('click', (event) => {
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        });
 
         // Functions
         function initApp() {
@@ -239,11 +312,12 @@
                 updateChart();
                 displayReadings();
                 updateStats();
+                showToast(`Switched to user: ${currentUser.name}`);
             }
         }
 
         function addUser() {
-            const name = prompt("Enter user name:");
+            const name = newUserNameInput.value.trim();
             if (name) {
                 const newUser = {
                     id: Date.now().toString(),
@@ -255,19 +329,24 @@
                 updateUserSelect();
                 userSelect.value = newUser.id;
                 changeUser();
+                modal.style.display = 'none';
+                newUserNameInput.value = '';
+                showToast(`New user added: ${name}`);
+            } else {
+                showToast('Please enter a valid name', 'error');
             }
         }
 
         function addReading() {
             if (!currentUser) {
-                alert("Please select a user first.");
+                showToast('Please select a user first', 'error');
                 return;
             }
             const systolic = parseInt(systolicInput.value);
             const diastolic = parseInt(diastolicInput.value);
             const pulse = parseInt(pulseInput.value);
             if (isNaN(systolic) || isNaN(diastolic) || isNaN(pulse)) {
-                alert("Please enter valid numbers for all fields.");
+                showToast('Please enter valid numbers for all fields', 'error');
                 return;
             }
             const reading = {
@@ -284,6 +363,7 @@
             updateStats();
             clearInputs();
             checkBloodPressure(systolic, diastolic);
+            showToast('New reading added successfully');
         }
 
         function clearInputs() {
@@ -294,9 +374,9 @@
 
         function checkBloodPressure(systolic, diastolic) {
             if (systolic >= 180 || diastolic >= 120) {
-                alert("WARNING: Your blood pressure is critically high. Seek medical attention immediately!");
+                showToast('WARNING: Your blood pressure is critically high. Seek medical attention immediately!', 'error');
             } else if (systolic >= 140 || diastolic >= 90) {
-                alert("Your blood pressure is high. Consider contacting your doctor.");
+                showToast('Your blood pressure is high. Consider contacting your doctor.', 'warning');
             }
         }
 
@@ -343,72 +423,73 @@
         }
 
         function displayReadings() {
-            readingsList.innerHTML = '';
-            currentUser.readings.slice().reverse().forEach(reading => {
-                const readingElement = document.createElement('div');
-                readingElement.classList.add('reading-item');
-                readingElement.innerHTML = `
-                    <div>
-                        <strong>${new Date(reading.date).toLocaleString()}</strong>
-                        - Systolic: ${reading.systolic}, 
-                        Diastolic: ${reading.diastolic}, 
-                        Pulse: ${reading.pulse}
-                    </div>
-                    <button class="delete-btn" data-id="${reading.id}">Delete</button>
-                `;
-                readingsList.appendChild(readingElement);
-            });
+        readingsList.innerHTML = '';
+        currentUser.readings.slice().reverse().forEach(reading => {
+            const readingElement = document.createElement('div');
+            readingElement.classList.add('reading-item');
+            readingElement.innerHTML = `
+                <div>
+                    <strong>${new Date(reading.date).toLocaleString()}</strong>
+                    - Systolic: ${reading.systolic}, 
+                    Diastolic: ${reading.diastolic}, 
+                    Pulse: ${reading.pulse}
+                </div>
+                <button class="delete-btn" data-id="${reading.id}">Delete</button>
+            `;
+            readingsList.appendChild(readingElement);
+        });
 
-            document.querySelectorAll('.delete-btn').forEach(btn => {
-                btn.addEventListener('click', deleteReading);
-            });
+        document.querySelectorAll('.delete-btn').forEach(btn => {
+            btn.addEventListener('click', deleteReading);
+        });
+    }
+
+    function deleteReading(event) {
+        const readingId = event.target.getAttribute('data-id');
+        currentUser.readings = currentUser.readings.filter(r => r.id !== readingId);
+        localStorage.setItem('bpUsers', JSON.stringify(users));
+        updateChart();
+        displayReadings();
+        updateStats();
+        showToast('Reading deleted successfully');
+    }
+
+    function updateStats() {
+        if (currentUser.readings.length === 0) {
+            document.getElementById('sysAvg').textContent = '-';
+            document.getElementById('diaAvg').textContent = '-';
+            document.getElementById('pulseAvg').textContent = '-';
+            document.getElementById('sysStdDev').textContent = 'StdDev: -';
+            document.getElementById('diaStdDev').textContent = 'StdDev: -';
+            document.getElementById('pulseStdDev').textContent = 'StdDev: -';
+            return;
         }
 
-        function deleteReading(event) {
-            const readingId = event.target.getAttribute('data-id');
-            currentUser.readings = currentUser.readings.filter(r => r.id !== readingId);
-            localStorage.setItem('bpUsers', JSON.stringify(users));
-            updateChart();
-            displayReadings();
-            updateStats();
-        }
+        const sysValues = currentUser.readings.map(r => r.systolic);
+        const diaValues = currentUser.readings.map(r => r.diastolic);
+        const pulseValues = currentUser.readings.map(r => r.pulse);
 
-        function updateStats() {
-            if (currentUser.readings.length === 0) {
-                document.getElementById('sysAvg').textContent = '-';
-                document.getElementById('diaAvg').textContent = '-';
-                document.getElementById('pulseAvg').textContent = '-';
-                document.getElementById('sysStdDev').textContent = 'StdDev: -';
-                document.getElementById('diaStdDev').textContent = 'StdDev: -';
-                document.getElementById('pulseStdDev').textContent = 'StdDev: -';
-                return;
-            }
+        const sysAvg = average(sysValues);
+        const diaAvg = average(diaValues);
+        const pulseAvg = average(pulseValues);
 
-            const sysValues = currentUser.readings.map(r => r.systolic);
-            const diaValues = currentUser.readings.map(r => r.diastolic);
-            const pulseValues = currentUser.readings.map(r => r.pulse);
+        const sysStdDev = standardDeviation(sysValues);
+        const diaStdDev = standardDeviation(diaValues);
+        const pulseStdDev = standardDeviation(pulseValues);
 
-            const sysAvg = average(sysValues);
-            const diaAvg = average(diaValues);
-            const pulseAvg = average(pulseValues);
+        document.getElementById('sysAvg').textContent = sysAvg.toFixed(1);
+        document.getElementById('diaAvg').textContent = diaAvg.toFixed(1);
+        document.getElementById('pulseAvg').textContent = pulseAvg.toFixed(1);
+        document.getElementById('sysStdDev').textContent = `StdDev: ${sysStdDev.toFixed(1)}`;
+        document.getElementById('diaStdDev').textContent = `StdDev: ${diaStdDev.toFixed(1)}`;
+        document.getElementById('pulseStdDev').textContent = `StdDev: ${pulseStdDev.toFixed(1)}`;
+    }
 
-            const sysStdDev = standardDeviation(sysValues);
-            const diaStdDev = standardDeviation(diaValues);
-            const pulseStdDev = standardDeviation(pulseValues);
+    function average(arr) {
+        return arr.length === 0 ? 0 : arr.reduce((a, b) => a + b) / arr.length;
+    }
 
-            document.getElementById('sysAvg').textContent = sysAvg.toFixed(1);
-            document.getElementById('diaAvg').textContent = diaAvg.toFixed(1);
-            document.getElementById('pulseAvg').textContent = pulseAvg.toFixed(1);
-            document.getElementById('sysStdDev').textContent = `StdDev: ${sysStdDev.toFixed(1)}`;
-            document.getElementById('diaStdDev').textContent = `StdDev: ${diaStdDev.toFixed(1)}`;
-            document.getElementById('pulseStdDev').textContent = `StdDev: ${pulseStdDev.toFixed(1)}`;
-        }
-
-        function average(arr) {
-            return arr.length === 0 ? 0 : arr.reduce((a, b) => a + b) / arr.length;
-        }
-
-        function standardDeviation(arr) {
+    function standardDeviation(arr) {
         const avg = average(arr);
         const squareDiffs = arr.map(value => Math.pow(value - avg, 2));
         const avgSquareDiff = average(squareDiffs);
@@ -419,6 +500,7 @@
         document.body.classList.toggle('dark-theme');
         localStorage.setItem('theme', document.body.classList.contains('dark-theme') ? 'dark' : 'light');
         updateChart();
+        showToast('Theme updated');
     }
 
     function loadTheme() {
@@ -429,6 +511,19 @@
         updateChart();
     }
 
+    function showToast(message, type = 'info') {
+        toast.textContent = message;
+        toast.style.backgroundColor = type === 'error' ? 'var(--danger-color)' : 
+                                      type === 'warning' ? 'var(--secondary-color)' : 
+                                      'var(--primary-color)';
+        toast.style.opacity = '1';
+        setTimeout(() => {
+            toast.style.opacity = '0';
+        }, 3000);
+    }
+
     // Initialize the app
     initApp();
 </script>
+  </body>
+</html>
